@@ -110,7 +110,12 @@ server.on('connection', function (conn) {
     sendError(UNKNOWN_ACTION, payload)
 
   conn.on('text', function (str) {
-    const action = JSON.parse(str)
+    let action
+    try {
+      action = JSON.parse(str) || {}
+    } catch (e) {
+      action = {}
+    }
     switch (action.type) {
       case JOIN_REQUEST:
         handleJoinRequest(action.payload)
