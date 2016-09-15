@@ -50,6 +50,16 @@ publicState.listen(state =>
     server.connections.map(conn =>
         conn.sendText(JSON.stringify({ type: 'STATE', payload: state }))))
 
+const mazeWithCoordinates = mazePromise.then(maze => maze
+  .map((row, y) => row.map((cell, x) => ({ x, y, cell })))
+)
+
+const getEntrances = mazeWithCoordinates.then(maze => maze
+  .map(row => row.filter(({ cell }) => cell === 'entrance'))
+  .filter(row => row.length)
+  .reduce((a, b) => a.concat(b))
+)
+
 server.on('connection', function (conn) {
   console.log('New connection')
 
@@ -84,10 +94,13 @@ server.on('connection', function (conn) {
     } else if (publicState.get().players[nickname]) {
       failure(JOIN_NICKNAME_ALREADY_TAKEN)
     } else {
-      publicState.update('players', nickname, {})
-      const token = getToken()
-      privateState.update('tokens', token, nickname)
-      success({ token, nickname })
+      getEntrances.then(([entrance, exit]) => {
+        const { x, y } = entrance
+        publicState.update('players', nickname, { x, y })
+        const token = getToken()
+        privateState.update('tokens', token, nickname)
+        success({ token, nickname })
+      })
     }
   }
 
