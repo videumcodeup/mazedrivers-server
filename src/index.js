@@ -67,7 +67,7 @@ server.on('connection', function (conn) {
   //   }
   // }
 
-  const handleJoinRequest = ({ nickname }) => {
+  const handleJoinRequest = ({ nickname } = {}) => {
     console.log('handleJoinRequest', nickname)
     const failure = payload => sendError(JOIN_FAILURE, payload)
     const success = payload => sendAction(JOIN_SUCCESS, payload)
