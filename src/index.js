@@ -2,6 +2,7 @@ import ws from 'nodejs-websocket'
 import { v4 as getToken } from 'node-uuid'
 import getAmaze from './amaze'
 import createState from './state'
+import amazeChanger from './amazeChanger'
 
 import {
   JOIN_FAILURE,
@@ -42,7 +43,10 @@ var publicState = createState({
   players: {}
 })
 
-mazePromise.then(maze => publicState.update('game', 'maze', maze))
+mazePromise.then(maze => {
+  publicState.update('game', 'maze', maze)
+  setInterval(updateMaze, 4000)
+})
 
 var server = ws.createServer()
 
@@ -59,6 +63,12 @@ const getEntrances = mazeWithCoordinates.then(maze => maze
   .filter(row => row.length)
   .reduce((a, b) => a.concat(b))
 )
+
+const updateMaze = () => {
+  const currentMaze = publicState.get().game.maze
+  const changedMaze = amazeChanger(currentMaze, 1)
+  publicState.update('game', 'maze', changedMaze)
+}
 
 server.on('connection', function (conn) {
   console.log('New connection')
