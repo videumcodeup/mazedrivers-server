@@ -155,10 +155,8 @@ server.on('connection', function (conn) {
   conn.on('close', function (code, reason) {
     console.log('Connection closed')
   })
-  mazePromise.then(maze => {
-    // conn.sendText(JSON.stringify(maze), res => {
-      // console.log('sendText res', res)
-    // })
+  mazePromise.then(() => {
+    sendAction('STATE', publicState.get())
   })
 })
 
