@@ -16,12 +16,24 @@ export default function createState (initial) {
       if (typeof state[coll] !== 'object') {
         throw new Error(`Cannot access coll ${coll} in state ${state}`)
       }
+
+      let newVal
+      if (val instanceof Array) {
+        newVal = val
+      } else {
+        newVal = {
+          ...state[coll] && state[coll][key],
+          val
+        }
+      }
       // state[coll][key] = val
-      state = Object.assign({}, state, {
-        [coll]: Object.assign({}, state[coll], {
-          [key]: val
-        })
-      })
+      state = {
+        ...state,
+        [coll]: {
+          ...state[coll],
+          [key]: newVal
+        }
+      }
       notify()
       return api
     },
