@@ -71,6 +71,14 @@ const updateMaze = () => {
 }
 
 server.on('connection', function (conn) {
+  const { setNickname, getNickname } = (() => {
+    let state
+    return {
+      getNickname: () => state,
+      setNickname: nickname => { state = nickname }
+    }
+  })()
+
   console.log('New connection')
 
   const sendError = (type, payload) =>
@@ -107,6 +115,7 @@ server.on('connection', function (conn) {
       getEntrances.then(([entrance, exit]) => {
         const { x, y } = entrance
         publicState.update('players', nickname, { x, y })
+        setNickname(nickname)
         const token = getToken()
         privateState.update('tokens', token, nickname)
         success({ token, nickname })
