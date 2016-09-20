@@ -8,9 +8,9 @@ import {
   JOIN_FAILURE,
   JOIN_REQUEST,
   JOIN_SUCCESS,
-  RESUME_FAILURE,
-  RESUME_REQUEST,
-  RESUME_SUCCESS,
+  REJOIN_FAILURE,
+  REJOIN_REQUEST,
+  REJOIN_SUCCESS,
   UNKNOWN_ACTION
 } from './actions'
 
@@ -23,9 +23,9 @@ const JOIN_NICKNAME_TOO_LONG = 'JOIN_NICKNAME_TOO_LONG'
 const JOIN_NICKNAME_TOO_SHORT = 'JOIN_NICKNAME_TOO_SHORT'
 const JOIN_TOO_LATE_GAME_ALREADY_STARTED = 'JOIN_TOO_LATE_GAME_ALREADY_STARTED'
 
-const RESUME_TOKEN_INVALID = 'RESUME_TOKEN_INVALID'
-const RESUME_TOKEN_MISSING = 'RESUME_TOKEN_MISSING'
-const RESUME_TOKEN_WRONG = 'RESUME_TOKEN_WRONG'
+const REJOIN_TOKEN_INVALID = 'REJOIN_TOKEN_INVALID'
+const REJOIN_TOKEN_MISSING = 'REJOIN_TOKEN_MISSING'
+const REJOIN_TOKEN_WRONG = 'REJOIN_TOKEN_WRONG'
 
 var host = 'localhost'
 var port = process.env.PORT || 8001
@@ -114,15 +114,15 @@ server.on('connection', function (conn) {
     }
   }
 
-  const handleResumeRequest = ({ token } = {}) => {
-    const failure = payload => sendError(RESUME_FAILURE, payload)
-    const success = payload => sendAction(RESUME_SUCCESS, payload)
+  const handleRejoinRequest = ({ token } = {}) => {
+    const failure = payload => sendError(REJOIN_FAILURE, payload)
+    const success = payload => sendAction(REJOIN_SUCCESS, payload)
     if (token == null) {
-      failure(RESUME_TOKEN_MISSING)
+      failure(REJOIN_TOKEN_MISSING)
     } else if (typeof token !== 'string') {
-      failure(RESUME_TOKEN_INVALID)
+      failure(REJOIN_TOKEN_INVALID)
     } else if (!privateState.get().tokens[token]) {
-      failure(RESUME_TOKEN_WRONG)
+      failure(REJOIN_TOKEN_WRONG)
     } else {
       const nickname = privateState.get().tokens[token]
       success({ token, nickname })
@@ -143,8 +143,8 @@ server.on('connection', function (conn) {
       case JOIN_REQUEST:
         handleJoinRequest(action.payload)
         break
-      case RESUME_REQUEST:
-        handleResumeRequest(action.payload)
+      case REJOIN_REQUEST:
+        handleRejoinRequest(action.payload)
         break
       default:
         handleUnknownAction(action)
