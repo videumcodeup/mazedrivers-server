@@ -23,7 +23,7 @@ export default function createState (initial) {
       } else {
         newVal = {
           ...state[coll] && state[coll][key],
-          val
+          ...val
         }
       }
       // state[coll][key] = val
