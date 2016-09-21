@@ -93,14 +93,6 @@ server.on('connection', function (conn) {
   const sendAction = (type, payload) =>
     conn.send(JSON.stringify({ type, payload }))
 
-  // const parseBodyIntoAction = str => {
-  //   try {
-  //     return JSON.parse(str) || {}
-  //   } catch (e) {
-  //     return {}
-  //   }
-  // }
-
   const handleJoinRequest = ({ nickname } = {}) => {
     console.log('handleJoinRequest', nickname)
     const failure = payload => sendError(JOIN_FAILURE, payload)
