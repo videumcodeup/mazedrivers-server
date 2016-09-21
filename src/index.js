@@ -5,6 +5,9 @@ import createState from './state'
 import amazeChanger from './amazeChanger'
 
 import {
+  DRIVE_FAILURE,
+  DRIVE_REQUEST,
+  DRIVE_SUCCESS,
   JOIN_FAILURE,
   JOIN_REQUEST,
   JOIN_SUCCESS,
@@ -14,6 +17,9 @@ import {
   UNKNOWN_ACTION
 } from './actions'
 
+const DRIVE_DIRECTION_MISSING = 'DRIVE_DIRECTION_MISSING'
+const DRIVE_DIRECTION_INVALID = 'DRIVE_DIRECTION_INVALID'
+const DRIVE_JOIN_GAME_FIRST = 'DRIVE_JOIN_GAME_FIRST'
 const JOIN_NICKNAME_ALREADY_TAKEN = 'JOIN_NICKNAME_ALREADY_TAKEN'
 const JOIN_NICKNAME_INVALID = 'JOIN_NICKNAME_INVALID'
 const JOIN_NICKNAME_MAX_LEN = 16
@@ -37,7 +43,7 @@ var privateState = createState({
 
 var publicState = createState({
   game: {
-    maze: {},
+    maze: [],
     started: false
   },
   players: {}
@@ -71,6 +77,14 @@ const updateMaze = () => {
 }
 
 server.on('connection', function (conn) {
+  const { setNickname, getNickname } = (() => {
+    let state
+    return {
+      getNickname: () => state,
+      setNickname: nickname => { state = nickname }
+    }
+  })()
+
   console.log('New connection')
 
   const sendError = (type, payload) =>
@@ -107,6 +121,7 @@ server.on('connection', function (conn) {
       getEntrances.then(([entrance, exit]) => {
         const { x, y } = entrance
         publicState.update('players', nickname, { x, y })
+        setNickname(nickname)
         const token = getToken()
         privateState.update('tokens', token, nickname)
         success({ token, nickname })
@@ -129,6 +144,24 @@ server.on('connection', function (conn) {
     }
   }
 
+  const directions = ['EAST', 'NORTH', 'SOUTH', 'WEST']
+  const handleDriveRequest = direction => {
+    const failure = payload => sendError(DRIVE_FAILURE, payload)
+    const success = payload => sendAction(DRIVE_SUCCESS, payload)
+    if (direction == null) {
+      failure(DRIVE_DIRECTION_MISSING)
+    } else if (typeof direction !== 'string') {
+      failure(DRIVE_DIRECTION_INVALID)
+    } else if (!directions.includes(direction)) {
+      failure(DRIVE_DIRECTION_INVALID)
+    } else if (!getNickname()) {
+      failure(DRIVE_JOIN_GAME_FIRST)
+    } else {
+      publicState.update('players', getNickname(), { direction })
+      success()
+    }
+  }
+
   const handleUnknownAction = payload =>
     sendError(UNKNOWN_ACTION, payload)
 
@@ -145,6 +178,9 @@ server.on('connection', function (conn) {
         break
       case REJOIN_REQUEST:
         handleRejoinRequest(action.payload)
+        break
+      case DRIVE_REQUEST:
+        handleDriveRequest(action.payload)
         break
       default:
         handleUnknownAction(action)
