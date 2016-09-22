@@ -49,6 +49,10 @@ var publicState = createState({
   players: {}
 })
 
+const stylesAvailable = ['taxi', 'police_car', 'ambulance', 'audi', 'truck']
+const randomStyle = () =>
+  stylesAvailable[Math.floor(Math.random() * stylesAvailable.length)]
+
 mazePromise.then(maze => {
   publicState.update('game', 'maze', maze)
   // setInterval(updateMaze, 4000)
@@ -112,7 +116,8 @@ server.on('connection', function (conn) {
     } else {
       getEntrances.then(([entrance, exit]) => {
         const { x, y } = entrance
-        publicState.update('players', nickname, { x, y })
+        const style = randomStyle()
+        publicState.update('players', nickname, { x, y, style })
         setNickname(nickname)
         const token = getToken()
         privateState.update('tokens', token, nickname)
