@@ -132,6 +132,7 @@ server.on('connection', function (conn) {
       failure(REJOIN_TOKEN_WRONG)
     } else {
       const nickname = privateState.get().tokens[token]
+      setNickname(nickname)
       success({ token, nickname })
     }
   }
