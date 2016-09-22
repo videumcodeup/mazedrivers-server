@@ -51,7 +51,7 @@ var publicState = createState({
 
 mazePromise.then(maze => {
   publicState.update('game', 'maze', maze)
-  setInterval(updateMaze, 4000)
+  // setInterval(updateMaze, 4000)
 })
 
 var server = ws.createServer()
