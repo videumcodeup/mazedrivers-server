@@ -93,14 +93,6 @@ server.on('connection', function (conn) {
   const sendAction = (type, payload) =>
     conn.send(JSON.stringify({ type, payload }))
 
-  // const parseBodyIntoAction = str => {
-  //   try {
-  //     return JSON.parse(str) || {}
-  //   } catch (e) {
-  //     return {}
-  //   }
-  // }
-
   const handleJoinRequest = ({ nickname } = {}) => {
     console.log('handleJoinRequest', nickname)
     const failure = payload => sendError(JOIN_FAILURE, payload)
@@ -140,6 +132,7 @@ server.on('connection', function (conn) {
       failure(REJOIN_TOKEN_WRONG)
     } else {
       const nickname = privateState.get().tokens[token]
+      setNickname(nickname)
       success({ token, nickname })
     }
   }
@@ -193,6 +186,51 @@ server.on('connection', function (conn) {
   })
   mazePromise.then(() => {
     sendAction('STATE', publicState.get())
+  })
+})
+
+const getNextPosition = ({ x, y, direction }, maze) => {
+  if (!maze) { return { x, y } }
+  switch (direction) {
+    case 'NORTH':
+      if (!maze[y - 1]) { return { x, y } }
+      if (!maze[y - 1][x]) { return { x, y } }
+      if (maze[y - 1][x] === 'wall') { return { x, y } }
+      if (maze[y - 1][x] === 'corner') { return { x, y } }
+      return { x, y: y - 1 }
+    case 'SOUTH':
+      if (!maze[y + 1]) { return { x, y } }
+      if (!maze[y + 1][x]) { return { x, y } }
+      if (maze[y + 1][x] === 'wall') { return { x, y } }
+      if (maze[y + 1][x] === 'corner') { return { x, y } }
+      return { x, y: y + 1 }
+    case 'EAST':
+      if (!maze[y]) { return { x, y } }
+      if (!maze[y][x + 1]) { return { x, y } }
+      if (maze[y][x + 1] === 'wall') { return { x, y } }
+      if (maze[y][x + 1] === 'corner') { return { x, y } }
+      return { x: x + 1, y }
+    case 'WEST':
+      if (!maze[y]) { return { x, y } }
+      if (!maze[y][x - 1]) { return { x, y } }
+      if (maze[y][x - 1] === 'wall') { return { x, y } }
+      if (maze[y][x - 1] === 'corner') { return { x, y } }
+      return { x: x - 1, y }
+    default:
+      return { x, y }
+  }
+}
+
+server.on('listening', () => {
+  mazePromise.then(() => {
+    setInterval(() => {
+      const { players, game: { maze } } = publicState.get()
+      Object.keys(players).forEach(nickname => {
+        const player = players[nickname]
+        const { x, y } = getNextPosition(player, maze)
+        publicState.update('players', nickname, { x, y })
+      })
+    }, 1000)
   })
 })
 
