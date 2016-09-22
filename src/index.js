@@ -230,7 +230,7 @@ server.on('listening', () => {
         const { x, y } = getNextPosition(player, maze)
         publicState.update('players', nickname, { x, y })
       })
-    }, 1000)
+    }, 300)
   })
 })
 
