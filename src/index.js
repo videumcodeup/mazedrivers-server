@@ -1,8 +1,8 @@
 import ws from 'nodejs-websocket'
 import { v4 as getToken } from 'node-uuid'
 import getAmaze from './amaze'
-import createState from './state'
-import amazeChanger from './amazeChanger'
+import incrementalStorage from './incrementalStorage'
+import keyValueArrayStore from './keyValueArrayStore'
 
 import {
   DRIVE_FAILURE,
@@ -27,68 +27,93 @@ const JOIN_NICKNAME_MIN_LEN = 3
 const JOIN_NICKNAME_MISSING = 'JOIN_NICKNAME_MISSING'
 const JOIN_NICKNAME_TOO_LONG = 'JOIN_NICKNAME_TOO_LONG'
 const JOIN_NICKNAME_TOO_SHORT = 'JOIN_NICKNAME_TOO_SHORT'
-const JOIN_TOO_LATE_GAME_ALREADY_STARTED = 'JOIN_TOO_LATE_GAME_ALREADY_STARTED'
 
 const REJOIN_TOKEN_INVALID = 'REJOIN_TOKEN_INVALID'
 const REJOIN_TOKEN_MISSING = 'REJOIN_TOKEN_MISSING'
 const REJOIN_TOKEN_WRONG = 'REJOIN_TOKEN_WRONG'
 
-var host = 'localhost'
-var port = process.env.PORT || 8001
-var mazePromise = getAmaze(10, 10)
+const GAME_PLAYER_LIMIT = 3
+const MAZE_WIDTH = 10
+const MAZE_HEIGHT = 10
+const MAZE_MAX_X = MAZE_WIDTH * 2
+const MAZE_MAX_Y = MAZE_HEIGHT * 2
 
-var privateState = createState({
-  tokens: {}
-})
+const host = 'localhost'
+const port = process.env.PORT || 8001
 
-var publicState = createState({
-  game: {
-    maze: [],
-    started: false
-  },
-  players: {}
-})
+const mazePromises = {}
+
+const clients = keyValueArrayStore()
+
+const games = incrementalStorage()
 
 const stylesAvailable = ['taxi', 'police_car', 'ambulance', 'audi', 'truck']
 const randomStyle = () =>
   stylesAvailable[Math.floor(Math.random() * stylesAvailable.length)]
 
-mazePromise.then(maze => {
-  publicState.update('game', 'maze', maze)
-  // setInterval(updateMaze, 4000)
-})
-
 var server = ws.createServer()
 
-publicState.listen(state =>
-    server.connections.map(conn =>
-        conn.sendText(JSON.stringify({ type: 'STATE', payload: state }))))
+const createOrGetMaze = gameId => {
+  console.log('gameId', gameId, 'createOrGetMaze')
+  if (!mazePromises[gameId]) {
+    mazePromises[gameId] = getAmaze(MAZE_WIDTH, MAZE_HEIGHT).then(maze => {
+      const mazeWithCoordinates = maze
+        .map((row, y) => row.map((cell, x) => ({ x, y, cell })))
 
-const mazeWithCoordinates = mazePromise.then(maze => maze
-  .map((row, y) => row.map((cell, x) => ({ x, y, cell })))
-)
+      const [entrance, exit] = mazeWithCoordinates
+        .map(row => row.filter(({ cell }) => cell === 'entrance'))
+        .filter(row => row.length)
+        .reduce((a, b) => a.concat(b))
 
-const getEntrances = mazeWithCoordinates.then(maze => maze
-  .map(row => row.filter(({ cell }) => cell === 'entrance'))
-  .filter(row => row.length)
-  .reduce((a, b) => a.concat(b))
-)
+      games.update(gameId, 'maze', maze)
 
-const updateMaze = () => {
-  const currentMaze = publicState.get().game.maze
-  const changedMaze = amazeChanger(currentMaze, 1)
-  publicState.update('game', 'maze', changedMaze)
+      return { maze, entrance, exit }
+    })
+  }
+  return mazePromises[gameId]
 }
 
-server.on('connection', function (conn) {
-  const { setNickname, getNickname } = (() => {
-    let state
-    return {
-      getNickname: () => state,
-      setNickname: nickname => { state = nickname }
-    }
-  })()
+const getInitialDirection = ({ x, y }) => {
+  if (x === 0) {
+    return 'EAST'
+  } else if (y === 0) {
+    return 'SOUTH'
+  } else if (x === MAZE_MAX_X) {
+    return 'WEST'
+  } else if (y === MAZE_MAX_Y) {
+    return 'NORTH'
+  } else {
+    console.error(`Failed getInitialDirection for ${[x, y]}`)
+    return 'NORTH'
+  }
+}
 
+const createOrJoinGame = (() => {
+  let nextGameId = getToken()
+  function createOrJoin (nickname) {
+    let gameId = nextGameId
+    const game = games.get()[gameId] || {}
+    const players = game.players || {}
+    if (Object.keys(players).length >= GAME_PLAYER_LIMIT) {
+      gameId = nextGameId = getToken()
+    }
+    return createOrGetMaze(gameId).then(({ maze, entrance, exit }) => {
+      const { x, y } = entrance
+      const style = randomStyle()
+      const direction = getInitialDirection(entrance)
+      console.log('gameId', gameId, 'updateBy')
+      games.update(gameId, 'players', nickname, 'x', x)
+      games.update(gameId, 'players', nickname, 'y', y)
+      games.update(gameId, 'players', nickname, 'style', style)
+      games.update(gameId, 'players', nickname, 'direction', direction)
+      games.update(gameId, 'players', nickname, 'speed', 0)
+      return gameId
+    })
+  }
+  return createOrJoin
+})()
+
+server.on('connection', function (conn) {
   console.log('New connection')
 
   const sendError = (type, payload) =>
@@ -98,12 +123,9 @@ server.on('connection', function (conn) {
     conn.send(JSON.stringify({ type, payload }))
 
   const handleJoinRequest = ({ nickname } = {}) => {
-    console.log('handleJoinRequest', nickname)
     const failure = payload => sendError(JOIN_FAILURE, payload)
     const success = payload => sendAction(JOIN_SUCCESS, payload)
-    if (publicState.get().game.started) {
-      failure(JOIN_TOO_LATE_GAME_ALREADY_STARTED)
-    } else if (nickname == null) {
+    if (nickname == null) {
       failure(JOIN_NICKNAME_MISSING)
     } else if (typeof nickname !== 'string') {
       failure(JOIN_NICKNAME_INVALID)
@@ -111,17 +133,15 @@ server.on('connection', function (conn) {
       failure(JOIN_NICKNAME_TOO_SHORT)
     } else if (nickname.length > JOIN_NICKNAME_MAX_LEN) {
       failure(JOIN_NICKNAME_TOO_LONG)
-    } else if (publicState.get().players[nickname]) {
+    } else if (clients.someBy({ nickname })) {
       failure(JOIN_NICKNAME_ALREADY_TAKEN)
     } else {
-      getEntrances.then(([entrance, exit]) => {
-        const { x, y } = entrance
-        const style = randomStyle()
-        publicState.update('players', nickname, { x, y, style })
-        setNickname(nickname)
-        const token = getToken()
-        privateState.update('tokens', token, nickname)
-        success({ token, nickname })
+      const token = getToken()
+      clients.updateBy({ token }, { token, nickname, key: conn.key })
+      createOrJoinGame(nickname).then(gameId => {
+        clients.updateBy({ nickname }, { gameId, abc: 123 })
+        success({ token, nickname, gameId })
+        sendAction('STATE', games.get()[gameId])
       })
     }
   }
@@ -133,12 +153,13 @@ server.on('connection', function (conn) {
       failure(REJOIN_TOKEN_MISSING)
     } else if (typeof token !== 'string') {
       failure(REJOIN_TOKEN_INVALID)
-    } else if (!privateState.get().tokens[token]) {
+    } else if (!clients.someBy({ token })) {
+      console.log('REJOIN_TOKEN_WRONG', token, clients.all())
       failure(REJOIN_TOKEN_WRONG)
     } else {
-      const nickname = privateState.get().tokens[token]
-      setNickname(nickname)
-      success({ token, nickname })
+      const { nickname, gameId } = clients.findBy({ token })
+      clients.updateBy({ token }, { key: conn.key })
+      success({ token, nickname, gameId })
     }
   }
 
@@ -152,10 +173,13 @@ server.on('connection', function (conn) {
       failure(DRIVE_DIRECTION_INVALID)
     } else if (!directions.includes(direction)) {
       failure(DRIVE_DIRECTION_INVALID)
-    } else if (!getNickname()) {
+    } else if (!clients.someBy({ key: conn.key })) {
+      console.log(clients.all())
       failure(DRIVE_JOIN_GAME_FIRST)
     } else {
-      publicState.update('players', getNickname(), { direction })
+      const { nickname, gameId } = clients.findBy({ key: conn.key })
+      games.update(gameId, 'players', nickname, 'direction', direction)
+      games.update(gameId, 'players', nickname, 'speed', 1)
       success()
     }
   }
@@ -189,13 +213,11 @@ server.on('connection', function (conn) {
   conn.on('close', function (code, reason) {
     console.log('Connection closed')
   })
-  mazePromise.then(() => {
-    sendAction('STATE', publicState.get())
-  })
 })
 
-const getNextPosition = ({ x, y, direction }, maze) => {
+const getNextPosition = ({ x, y, direction, speed }, maze) => {
   if (!maze) { return { x, y } }
+  if (speed === 0) { return { x, y } }
   switch (direction) {
     case 'NORTH':
       if (!maze[y - 1]) { return { x, y } }
@@ -227,16 +249,27 @@ const getNextPosition = ({ x, y, direction }, maze) => {
 }
 
 server.on('listening', () => {
-  mazePromise.then(() => {
-    setInterval(() => {
-      const { players, game: { maze } } = publicState.get()
+  setInterval(() => {
+    Object.keys(games.get()).forEach(gameId => {
+      const { players, maze } = games.get()[gameId]
       Object.keys(players).forEach(nickname => {
         const player = players[nickname]
         const { x, y } = getNextPosition(player, maze)
-        publicState.update('players', nickname, { x, y })
+        if (player.x !== x) {
+          games.update(gameId, 'players', nickname, 'x', x)
+        }
+        if (player.y !== y) {
+          games.update(gameId, 'players', nickname, 'y', y)
+        }
       })
-    }, 300)
-  })
+
+      const action = games.takeQueue(gameId)
+      if (!action.length) { return }
+      server.connections
+        .filter(conn => clients.someBy({ key: conn.key, gameId }))
+        .forEach(conn => conn.sendText(JSON.stringify(action)))
+    })
+  }, 300)
 })
 
 server.listen(port)
