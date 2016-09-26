@@ -5,6 +5,9 @@ import incrementalStorage from './incrementalStorage'
 import keyValueArrayStore from './keyValueArrayStore'
 
 import {
+  BREAK_FAILURE,
+  BREAK_REQUEST,
+  BREAK_SUCCESS,
   DRIVE_FAILURE,
   DRIVE_REQUEST,
   DRIVE_SUCCESS,
@@ -223,6 +226,18 @@ server.on('connection', function (conn) {
     }
   }
 
+  const handleBreakRequest = () => {
+    const failure = payload => sendError(BREAK_FAILURE, payload)
+    const success = () => sendAction(BREAK_SUCCESS)
+    if (!clients.someBy({ key: conn.key })) {
+      failure(BREAK_JOIN_GAME_FIRST)
+    } else {
+      const { nickname, gameId } = clients.findBy({ key: conn.key })
+      games.update(gameId, 'players', nickname, 'speed', 0)
+      success()
+    }
+  }
+
   const handleUnknownAction = payload =>
     sendError(UNKNOWN_ACTION, payload)
 
@@ -242,6 +257,9 @@ server.on('connection', function (conn) {
         break
       case DRIVE_REQUEST:
         handleDriveRequest(action.payload)
+        break
+      case BREAK_REQUEST:
+        handleBreakRequest()
         break
       case LIST_REQUEST:
         handleListRequest(action.payload)
