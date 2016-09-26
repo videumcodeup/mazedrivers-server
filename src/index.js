@@ -23,6 +23,9 @@ import {
   REJOIN_FAILURE,
   REJOIN_REQUEST,
   REJOIN_SUCCESS,
+  UNFOLLOW_FAILURE,
+  UNFOLLOW_REQUEST,
+  UNFOLLOW_SUCCESS,
   UNKNOWN_ACTION
 } from './actions'
 
@@ -44,6 +47,10 @@ const JOIN_NICKNAME_TOO_SHORT = 'JOIN_NICKNAME_TOO_SHORT'
 const REJOIN_TOKEN_INVALID = 'REJOIN_TOKEN_INVALID'
 const REJOIN_TOKEN_MISSING = 'REJOIN_TOKEN_MISSING'
 const REJOIN_TOKEN_WRONG = 'REJOIN_TOKEN_WRONG'
+
+const UNFOLLOW_NICKNAME_MISSING = 'UNFOLLOW_NICKNAME_MISSING'
+const UNFOLLOW_NICKNAME_INVALID = 'UNFOLLOW_NICKNAME_INVALID'
+const UNFOLLOW_NICKNAME_WRONG = 'UNFOLLOW_NICKNAME_WRONG'
 
 const GAME_PLAYER_LIMIT = 3
 const MAZE_WIDTH = 10
@@ -227,10 +234,25 @@ server.on('connection', function (conn) {
       const { gameId } = clients.findBy({ nickname })
       // Add this spectator to clients
       clients.updateBy({ key: conn.key }, { key: conn.key, gameId })
-      success()
+      success({ nickname })
       if (gameId && games.get()[gameId]) {
         sendAction('STATE', games.get()[gameId])
       }
+    }
+  }
+
+  const handleUnfollowRequest = ({ nickname } = {}) => {
+    const failure = payload => sendError(UNFOLLOW_FAILURE, payload)
+    const success = payload => sendAction(UNFOLLOW_SUCCESS, payload)
+    if (nickname == null) {
+      failure(UNFOLLOW_NICKNAME_MISSING)
+    } else if (typeof nickname !== 'string') {
+      failure(UNFOLLOW_NICKNAME_INVALID)
+    } else if (!clients.findBy({ nickname })) {
+      failure(UNFOLLOW_NICKNAME_WRONG)
+    } else {
+      clients.updateBy({ key: conn.key }, { key: conn.key, gameId: undefined })
+      success()
     }
   }
 
@@ -295,6 +317,9 @@ server.on('connection', function (conn) {
         break
       case FOLLOW_REQUEST:
         handleFollowRequest(action.payload)
+        break
+      case UNFOLLOW_REQUEST:
+        handleUnfollowRequest(action.payload)
         break
       default:
         handleUnknownAction(action)
