@@ -67,16 +67,17 @@ const clients = keyValueArrayStore()
 
 const games = incrementalStorage()
 
-const stylesAvailable = ['taxi', 'police_car', 'ambulance', 'audi', 'truck']
+const stylesAvailable = ['taxi', 'police', 'ambulance']
 
-const isGameFull = (gameId) => {
+const getPlayersNumber = (gameId) => {
   const game = games.get()[gameId] || {}
   const players = game.players || {}
-  return Object.keys(players).length >= GAME_PLAYER_LIMIT
+  return Object.keys(players).length
 }
 
-const randomStyle = () =>
-  stylesAvailable[Math.floor(Math.random() * stylesAvailable.length)]
+const isGameFull = (gameId) => {
+  return getPlayersNumber(gameId) >= GAME_PLAYER_LIMIT
+}
 
 var server = ws.createServer()
 
@@ -129,7 +130,7 @@ const createOrJoinGame = (() => {
     }
     return createOrGetMaze(gameId).then(({ maze, entrance, exit }) => {
       const { x, y } = entrance
-      const style = randomStyle()
+      const style = stylesAvailable[getPlayersNumber(gameId)]
       const direction = getInitialDirection(entrance)
       console.log('gameId', gameId, 'updateBy')
       games.update(gameId, 'players', nickname, 'x', x)
