@@ -8,6 +8,9 @@ import {
   DRIVE_FAILURE,
   DRIVE_REQUEST,
   DRIVE_SUCCESS,
+  FOLLOW_FAILURE,
+  FOLLOW_REQUEST,
+  FOLLOW_SUCCESS,
   JOIN_FAILURE,
   JOIN_REQUEST,
   JOIN_SUCCESS,
@@ -22,6 +25,11 @@ import {
 const DRIVE_DIRECTION_MISSING = 'DRIVE_DIRECTION_MISSING'
 const DRIVE_DIRECTION_INVALID = 'DRIVE_DIRECTION_INVALID'
 const DRIVE_JOIN_GAME_FIRST = 'DRIVE_JOIN_GAME_FIRST'
+
+const FOLLOW_NICKNAME_MISSING = 'FOLLOW_NICKNAME_MISSING'
+const FOLLOW_NICKNAME_INVALID = 'FOLLOW_NICKNAME_INVALID'
+const FOLLOW_NICKNAME_WRONG = 'FOLLOW_NICKNAME_WRONG'
+
 const JOIN_NICKNAME_ALREADY_TAKEN = 'JOIN_NICKNAME_ALREADY_TAKEN'
 const JOIN_NICKNAME_INVALID = 'JOIN_NICKNAME_INVALID'
 const JOIN_NICKNAME_MAX_LEN = 16
@@ -173,6 +181,27 @@ server.on('connection', function (conn) {
     success({ clients: players })
   }
 
+  const handleFollowRequest = ({ nickname } = {}) => {
+    const failure = payload => sendError(FOLLOW_FAILURE, payload)
+    const success = payload => sendAction(FOLLOW_SUCCESS, payload)
+    if (nickname == null) {
+      failure(FOLLOW_NICKNAME_MISSING)
+    } else if (typeof nickname !== 'string') {
+      failure(FOLLOW_NICKNAME_INVALID)
+    } else if (!clients.findBy({ nickname })) {
+      failure(FOLLOW_NICKNAME_WRONG)
+    } else {
+      // Get gameId from specified nickname
+      const { gameId } = clients.findBy({ nickname })
+      // Add this spectator to clients
+      clients.updateBy({ key: conn.key }, { key: conn.key, gameId })
+      success()
+      if (gameId && games.get()[gameId]) {
+        sendAction('STATE', games.get()[gameId])
+      }
+    }
+  }
+
   const directions = ['EAST', 'NORTH', 'SOUTH', 'WEST']
   const handleDriveRequest = direction => {
     const failure = payload => sendError(DRIVE_FAILURE, payload)
@@ -216,6 +245,9 @@ server.on('connection', function (conn) {
         break
       case LIST_REQUEST:
         handleListRequest(action.payload)
+        break
+      case FOLLOW_REQUEST:
+        handleFollowRequest(action.payload)
         break
       default:
         handleUnknownAction(action)
