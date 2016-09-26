@@ -14,6 +14,7 @@ import {
   FOLLOW_FAILURE,
   FOLLOW_REQUEST,
   FOLLOW_SUCCESS,
+  GAME_STARTING,
   JOIN_FAILURE,
   JOIN_REQUEST,
   JOIN_SUCCESS,
@@ -28,11 +29,10 @@ import {
 const DRIVE_DIRECTION_MISSING = 'DRIVE_DIRECTION_MISSING'
 const DRIVE_DIRECTION_INVALID = 'DRIVE_DIRECTION_INVALID'
 const DRIVE_JOIN_GAME_FIRST = 'DRIVE_JOIN_GAME_FIRST'
-
 const FOLLOW_NICKNAME_MISSING = 'FOLLOW_NICKNAME_MISSING'
 const FOLLOW_NICKNAME_INVALID = 'FOLLOW_NICKNAME_INVALID'
 const FOLLOW_NICKNAME_WRONG = 'FOLLOW_NICKNAME_WRONG'
-
+const GAME_SECONDS_UNTIL_START = 3
 const JOIN_NICKNAME_ALREADY_TAKEN = 'JOIN_NICKNAME_ALREADY_TAKEN'
 const JOIN_NICKNAME_INVALID = 'JOIN_NICKNAME_INVALID'
 const JOIN_NICKNAME_MAX_LEN = 16
@@ -61,6 +61,13 @@ const clients = keyValueArrayStore()
 const games = incrementalStorage()
 
 const stylesAvailable = ['taxi', 'police_car', 'ambulance', 'audi', 'truck']
+
+const isGameFull = (gameId) => {
+  const game = games.get()[gameId] || {}
+  const players = game.players || {}
+  return Object.keys(players).length >= GAME_PLAYER_LIMIT
+}
+
 const randomStyle = () =>
   stylesAvailable[Math.floor(Math.random() * stylesAvailable.length)]
 
@@ -79,6 +86,11 @@ const createOrGetMaze = gameId => {
         .reduce((a, b) => a.concat(b))
 
       games.update(gameId, 'maze', maze)
+      games.update(gameId, 'details', 'entrance', 'x', entrance.x)
+      games.update(gameId, 'details', 'entrance', 'y', entrance.y)
+      games.update(gameId, 'details', 'exit', 'x', exit.x)
+      games.update(gameId, 'details', 'exit', 'y', exit.y)
+      games.update(gameId, 'details', 'predicates', 'isStarted', false)
 
       return { maze, entrance, exit }
     })
@@ -105,9 +117,7 @@ const createOrJoinGame = (() => {
   let nextGameId = getToken()
   function createOrJoin (nickname) {
     let gameId = nextGameId
-    const game = games.get()[gameId] || {}
-    const players = game.players || {}
-    if (Object.keys(players).length >= GAME_PLAYER_LIMIT) {
+    if (isGameFull(gameId)) {
       gameId = nextGameId = getToken()
     }
     return createOrGetMaze(gameId).then(({ maze, entrance, exit }) => {
@@ -120,6 +130,8 @@ const createOrJoinGame = (() => {
       games.update(gameId, 'players', nickname, 'style', style)
       games.update(gameId, 'players', nickname, 'direction', direction)
       games.update(gameId, 'players', nickname, 'speed', 0)
+      games.update(gameId, 'players', nickname, 'time', null)
+      games.update(gameId, 'players', nickname, 'finished', false)
       return gameId
     })
   }
@@ -138,6 +150,7 @@ server.on('connection', function (conn) {
   const handleJoinRequest = ({ nickname } = {}) => {
     const failure = payload => sendError(JOIN_FAILURE, payload)
     const success = payload => sendAction(JOIN_SUCCESS, payload)
+
     if (nickname == null) {
       failure(JOIN_NICKNAME_MISSING)
     } else if (typeof nickname !== 'string') {
@@ -152,8 +165,24 @@ server.on('connection', function (conn) {
       const token = getToken()
       clients.updateBy({ token }, { token, nickname, key: conn.key })
       createOrJoinGame(nickname).then(gameId => {
-        clients.updateBy({ nickname }, { gameId, abc: 123 })
+        clients.updateBy({ nickname }, { gameId })
         success({ token, nickname, gameId })
+        if (isGameFull(gameId)) {
+          server.connections
+            .filter(conn => clients.someBy({ gameId }))
+            .forEach(conn => conn.sendText(JSON.stringify({
+              type: GAME_STARTING,
+              payload: { countdown: GAME_SECONDS_UNTIL_START }
+            })))
+          setTimeout(() => {
+            const now = Date.now()
+            const players = games.get()[gameId].players
+            games.update(gameId, 'details', 'predicates', 'isStarted', true)
+            Object.keys(players).forEach(nickname => {
+              games.update(gameId, 'players', nickname, 'time', now)
+            })
+          }, GAME_SECONDS_UNTIL_START * 1000)
+        }
         sendAction('STATE', games.get()[gameId])
       })
     }
@@ -314,7 +343,7 @@ const getNextPosition = ({ x, y, direction, speed }, maze) => {
 server.on('listening', () => {
   setInterval(() => {
     Object.keys(games.get()).forEach(gameId => {
-      const { players, maze } = games.get()[gameId]
+      const { players, maze, details } = games.get()[gameId]
       Object.keys(players).forEach(nickname => {
         const player = players[nickname]
         const { x, y } = getNextPosition(player, maze)
@@ -323,6 +352,11 @@ server.on('listening', () => {
         }
         if (player.y !== y) {
           games.update(gameId, 'players', nickname, 'y', y)
+        }
+        if (details.exit.x == x && details.exit.y == y && !player.finished) {
+          const now = Date.now()
+          games.update(gameId, 'players', nickname, 'finished', true)
+          games.update(gameId, 'players', nickname, 'time', now - player.time)
         }
       })
 
