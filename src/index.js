@@ -83,6 +83,10 @@ const createOrGetMaze = gameId => {
         .reduce((a, b) => a.concat(b))
 
       games.update(gameId, 'maze', maze)
+      games.update(gameId, 'details', 'entrance', 'x', entrance.x)
+      games.update(gameId, 'details', 'entrance', 'y', entrance.y)
+      games.update(gameId, 'details', 'exit', 'x', exit.x)
+      games.update(gameId, 'details', 'exit', 'y', exit.y)
       games.update(gameId, 'details', 'predicates', 'isStarted', false)
 
       return { maze, entrance, exit }
@@ -124,6 +128,7 @@ const createOrJoinGame = (() => {
       games.update(gameId, 'players', nickname, 'direction', direction)
       games.update(gameId, 'players', nickname, 'speed', 0)
       games.update(gameId, 'players', nickname, 'time', null)
+      games.update(gameId, 'players', nickname, 'finished', false)
       return gameId
     })
   }
@@ -320,7 +325,7 @@ const getNextPosition = ({ x, y, direction, speed }, maze) => {
 server.on('listening', () => {
   setInterval(() => {
     Object.keys(games.get()).forEach(gameId => {
-      const { players, maze } = games.get()[gameId]
+      const { players, maze, details } = games.get()[gameId]
       Object.keys(players).forEach(nickname => {
         const player = players[nickname]
         const { x, y } = getNextPosition(player, maze)
@@ -329,6 +334,11 @@ server.on('listening', () => {
         }
         if (player.y !== y) {
           games.update(gameId, 'players', nickname, 'y', y)
+        }
+        if (details.exit.x == x && details.exit.y == y && !player.finished) {
+          const now = Date.now()
+          games.update(gameId, 'players', nickname, 'finished', true)
+          games.update(gameId, 'players', nickname, 'time', now - player.time)
         }
       })
 
