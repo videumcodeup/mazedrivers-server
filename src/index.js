@@ -11,6 +11,8 @@ import {
   JOIN_FAILURE,
   JOIN_REQUEST,
   JOIN_SUCCESS,
+  LIST_REQUEST,
+  LIST_SUCCESS,
   REJOIN_FAILURE,
   REJOIN_REQUEST,
   REJOIN_SUCCESS,
@@ -163,6 +165,14 @@ server.on('connection', function (conn) {
     }
   }
 
+  const handleListRequest = () => {
+    const success = payload => sendAction(LIST_SUCCESS, payload)
+    const players = clients.all()
+      .filter(({ nickname }) => nickname)
+      .map(({ nickname, gameId }) => ({ nickname, gameId }))
+    success({ clients: players })
+  }
+
   const directions = ['EAST', 'NORTH', 'SOUTH', 'WEST']
   const handleDriveRequest = direction => {
     const failure = payload => sendError(DRIVE_FAILURE, payload)
@@ -203,6 +213,9 @@ server.on('connection', function (conn) {
         break
       case DRIVE_REQUEST:
         handleDriveRequest(action.payload)
+        break
+      case LIST_REQUEST:
+        handleListRequest(action.payload)
         break
       default:
         handleUnknownAction(action)
