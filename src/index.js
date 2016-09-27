@@ -30,9 +30,11 @@ import {
   UNKNOWN_ACTION
 } from './actions'
 
-const DRIVE_DIRECTION_MISSING = 'DRIVE_DIRECTION_MISSING'
 const DRIVE_DIRECTION_INVALID = 'DRIVE_DIRECTION_INVALID'
+const DRIVE_DIRECTION_MISSING = 'DRIVE_DIRECTION_MISSING'
+const DRIVE_GAME_NOT_STARTED = 'DRIVE_GAME_NOT_STARTED'
 const DRIVE_JOIN_GAME_FIRST = 'DRIVE_JOIN_GAME_FIRST'
+const DRIVE_PLAYER_IS_FINISHED = 'DRIVE_PLAYER_IS_FINISHED'
 const FOLLOW_NICKNAME_MISSING = 'FOLLOW_NICKNAME_MISSING'
 const FOLLOW_NICKNAME_INVALID = 'FOLLOW_NICKNAME_INVALID'
 const FOLLOW_NICKNAME_WRONG = 'FOLLOW_NICKNAME_WRONG'
@@ -262,6 +264,17 @@ server.on('connection', function (conn) {
   const handleDriveRequest = direction => {
     const failure = payload => sendError(DRIVE_FAILURE, payload)
     const success = payload => sendAction(DRIVE_SUCCESS, payload)
+
+    const gameIsStarted = () => {
+      const { gameId } = clients.findBy({ key: conn.key })
+      return games.get()[gameId].details.predicates.isStarted
+    }
+
+    const playerIsFinished = () => {
+      const { gameId, nickname } = clients.findBy({ key: conn.key })
+      return games.get()[gameId].players[nickname].finished
+    }
+
     if (direction == null) {
       failure(DRIVE_DIRECTION_MISSING)
     } else if (typeof direction !== 'string') {
@@ -269,8 +282,11 @@ server.on('connection', function (conn) {
     } else if (!directions.includes(direction)) {
       failure(DRIVE_DIRECTION_INVALID)
     } else if (!clients.someBy({ key: conn.key })) {
-      console.log(clients.all())
       failure(DRIVE_JOIN_GAME_FIRST)
+    } else if (!gameIsStarted()) {
+      failure(DRIVE_GAME_NOT_STARTED)
+    } else if (playerIsFinished()) {
+      failure(DRIVE_PLAYER_IS_FINISHED)
     } else {
       const { nickname, gameId } = clients.findBy({ key: conn.key })
       games.update(gameId, 'players', nickname, 'direction', direction)
@@ -391,6 +407,7 @@ server.on('listening', () => {
           const now = Date.now()
           games.update(gameId, 'players', nickname, 'finished', true)
           games.update(gameId, 'players', nickname, 'time', now - player.time)
+          games.update(gameId, 'players', nickname, 'speed', 0)
           saveTimeToFile(gameId, nickname, now - player.time)
         }
       })
