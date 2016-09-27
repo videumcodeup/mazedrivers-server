@@ -140,8 +140,10 @@ const createOrJoinGame = (() => {
       games.update(gameId, 'players', nickname, 'style', style)
       games.update(gameId, 'players', nickname, 'direction', direction)
       games.update(gameId, 'players', nickname, 'speed', 0)
-      games.update(gameId, 'players', nickname, 'time', null)
+      games.update(gameId, 'players', nickname, 'timeStart', null)
+      games.update(gameId, 'players', nickname, 'timeEnd', null)
       games.update(gameId, 'players', nickname, 'finished', false)
+      games.update(gameId, 'players', nickname, 'nickname', nickname)
       return gameId
     })
   }
@@ -185,7 +187,7 @@ server.on('connection', function (conn) {
             games.update(gameId, 'details', 'predicates', 'isStarted', true)
             games.update(gameId, 'details', 'predicates', 'isStarting', false)
             Object.keys(players).forEach(nickname => {
-              games.update(gameId, 'players', nickname, 'time', now)
+              games.update(gameId, 'players', nickname, 'timeStart', now)
             })
           }, 3000)
         }
@@ -401,8 +403,8 @@ server.on('listening', () => {
         if (details.exit.x == x && details.exit.y == y && !player.finished) {
           const now = Date.now()
           games.update(gameId, 'players', nickname, 'finished', true)
-          games.update(gameId, 'players', nickname, 'time', now - player.time)
           games.update(gameId, 'players', nickname, 'speed', 0)
+          games.update(gameId, 'players', nickname, 'timeEnd', now)
           saveTimeToFile(gameId, nickname, now - player.time)
         }
       })
