@@ -392,7 +392,7 @@ server.on('listening', () => {
         .filter(conn => clients.someBy({ key: conn.key, gameId }))
         .forEach(conn => conn.sendText(JSON.stringify(action)))
     })
-  }, 300)
+  }, 100)
 })
 
 server.listen(port)
