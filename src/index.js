@@ -345,6 +345,13 @@ server.on('connection', function (conn) {
   conn.on('close', function (code, reason) {
     console.log('Connection closed')
   })
+
+  conn.on('error', function (err) {
+    if (err.code !== 'ECONNRESET') {
+      // Ignore ECONNRESET and re throw anything else
+      console.error(err)
+    }
+  })
 })
 
 const saveTimeToFile = (gameId, nickname, time) => {
