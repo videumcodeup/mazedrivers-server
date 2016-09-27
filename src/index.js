@@ -186,7 +186,7 @@ server.on('connection', function (conn) {
             const players = games.get()[gameId].players
             games.update(gameId, 'details', 'predicates', 'isStarted', true)
             games.update(gameId, 'details', 'predicates', 'isStarting', false)
-            Object.keys(players).forEach(nickname => {
+            players && Object.keys(players).forEach(nickname => {
               games.update(gameId, 'players', nickname, 'timeStart', now)
             })
           }, 3000)
@@ -345,6 +345,13 @@ server.on('connection', function (conn) {
   conn.on('close', function (code, reason) {
     console.log('Connection closed')
   })
+
+  conn.on('error', function (err) {
+    if (err.code !== 'ECONNRESET') {
+      // Ignore ECONNRESET and re throw anything else
+      console.error(err)
+    }
+  })
 })
 
 const saveTimeToFile = (gameId, nickname, time) => {
@@ -391,7 +398,7 @@ server.on('listening', () => {
   setInterval(() => {
     Object.keys(games.get()).forEach(gameId => {
       const { players, maze, details } = games.get()[gameId]
-      Object.keys(players).forEach(nickname => {
+      players && Object.keys(players).forEach(nickname => {
         const player = players[nickname]
         const { x, y } = getNextPosition(player, maze)
         if (player.x !== x) {
