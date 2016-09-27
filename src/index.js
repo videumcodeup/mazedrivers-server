@@ -355,8 +355,12 @@ server.on('connection', function (conn) {
   })
 })
 
-const saveTimeToFile = (gameId, nickname, time) => {
-  const result = JSON.stringify({ gameId, nickname, time })
+const saveTimesToFile = (gameId, players) => {
+  const results = Object.keys(players).map(nickname => {
+    const { timeStart, timeEnd } = players[nickname]
+    return { gameId, nickname, time: timeEnd - timeStart }
+  })
+  const result = JSON.stringify(results)
   fs.writeFile(`./results/${gameId}`, result, err => {
     if (err) { console.error(`Could not save result ${result}`, err) }
   })
@@ -413,7 +417,7 @@ server.on('listening', () => {
           games.update(gameId, 'players', nickname, 'finished', true)
           games.update(gameId, 'players', nickname, 'speed', 0)
           games.update(gameId, 'players', nickname, 'timeEnd', now)
-          saveTimeToFile(gameId, nickname, now - player.time)
+          saveTimesToFile(gameId, games.get()[gameId].players)
         }
       })
 
