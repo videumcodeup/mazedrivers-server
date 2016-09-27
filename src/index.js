@@ -1,3 +1,4 @@
+import fs from 'fs'
 import ws from 'nodejs-websocket'
 import { v4 as getToken } from 'node-uuid'
 import getAmaze from './amaze'
@@ -333,6 +334,13 @@ server.on('connection', function (conn) {
   })
 })
 
+const saveTimeToFile = (gameId, nickname, time) => {
+  const result = JSON.stringify({ gameId, nickname, time })
+  fs.writeFile(`./results/${gameId}`, result, err => {
+    if (err) { console.error(`Could not save result ${result}`, err) }
+  })
+}
+
 const getNextPosition = ({ x, y, direction, speed }, maze) => {
   if (!maze) { return { x, y } }
   if (speed === 0) { return { x, y } }
@@ -383,6 +391,7 @@ server.on('listening', () => {
           const now = Date.now()
           games.update(gameId, 'players', nickname, 'finished', true)
           games.update(gameId, 'players', nickname, 'time', now - player.time)
+          saveTimeToFile(gameId, nickname, now - player.time)
         }
       })
 
