@@ -15,7 +15,6 @@ import {
   FOLLOW_FAILURE,
   FOLLOW_REQUEST,
   FOLLOW_SUCCESS,
-  GAME_STARTING,
   JOIN_FAILURE,
   JOIN_REQUEST,
   JOIN_SUCCESS,
@@ -38,7 +37,6 @@ const DRIVE_PLAYER_IS_FINISHED = 'DRIVE_PLAYER_IS_FINISHED'
 const FOLLOW_NICKNAME_MISSING = 'FOLLOW_NICKNAME_MISSING'
 const FOLLOW_NICKNAME_INVALID = 'FOLLOW_NICKNAME_INVALID'
 const FOLLOW_NICKNAME_WRONG = 'FOLLOW_NICKNAME_WRONG'
-const GAME_SECONDS_UNTIL_START = 3
 const JOIN_NICKNAME_ALREADY_TAKEN = 'JOIN_NICKNAME_ALREADY_TAKEN'
 const JOIN_NICKNAME_INVALID = 'JOIN_NICKNAME_INVALID'
 const JOIN_NICKNAME_MAX_LEN = 16
@@ -102,6 +100,7 @@ const createOrGetMaze = gameId => {
       games.update(gameId, 'details', 'exit', 'x', exit.x)
       games.update(gameId, 'details', 'exit', 'y', exit.y)
       games.update(gameId, 'details', 'predicates', 'isStarted', false)
+      games.update(gameId, 'details', 'predicates', 'isStarting', false)
 
       return { maze, entrance, exit }
     })
@@ -179,20 +178,16 @@ server.on('connection', function (conn) {
         clients.updateBy({ nickname }, { gameId })
         success({ token, nickname, gameId })
         if (isGameFull(gameId)) {
-          server.connections
-            .filter(conn => clients.someBy({ gameId }))
-            .forEach(conn => conn.sendText(JSON.stringify({
-              type: GAME_STARTING,
-              payload: { countdown: GAME_SECONDS_UNTIL_START }
-            })))
+          games.update(gameId, 'details', 'predicates', 'isStarting', true)
           setTimeout(() => {
             const now = Date.now()
             const players = games.get()[gameId].players
             games.update(gameId, 'details', 'predicates', 'isStarted', true)
+            games.update(gameId, 'details', 'predicates', 'isStarting', false)
             Object.keys(players).forEach(nickname => {
               games.update(gameId, 'players', nickname, 'time', now)
             })
-          }, GAME_SECONDS_UNTIL_START * 1000)
+          }, 3000)
         }
         sendAction('STATE', games.get()[gameId])
       })
