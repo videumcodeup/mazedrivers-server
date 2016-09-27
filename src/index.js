@@ -210,6 +210,7 @@ server.on('connection', function (conn) {
       const { nickname, gameId } = clients.findBy({ token })
       clients.updateBy({ token }, { key: conn.key })
       success({ token, nickname, gameId })
+      sendAction('STATE', games.get()[gameId])
     }
   }
 
