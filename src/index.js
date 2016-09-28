@@ -414,7 +414,7 @@ server.on('listening', () => {
         if (player.y !== y) {
           games.update(gameId, 'players', nickname, 'y', y)
         }
-        if (details.exit.x == x && details.exit.y == y && !player.finished) {
+        if (details.exit.x === x && details.exit.y === y && !player.finished) {
           const now = Date.now()
           games.update(gameId, 'players', nickname, 'finished', true)
           games.update(gameId, 'players', nickname, 'speed', 0)
