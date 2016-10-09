@@ -153,7 +153,8 @@ const createOrJoinGame = (() => {
 })()
 
 server.on('connection', function (conn) {
-  console.log('New connection')
+  conn.uuid = getToken()
+  console.log(`New connection ${conn.uuid}`)
 
   const sendError = (type, payload) =>
     conn.send(JSON.stringify({ type, error: true, payload }))
@@ -177,7 +178,7 @@ server.on('connection', function (conn) {
       failure(JOIN_NICKNAME_ALREADY_TAKEN)
     } else {
       const token = getToken()
-      clients.updateBy({ token }, { token, nickname, key: conn.key })
+      clients.updateBy({ token }, { token, nickname, uuid: conn.uuid })
       createOrJoinGame(nickname).then(gameId => {
         clients.updateBy({ nickname }, { gameId })
         success({ token, nickname, gameId })
@@ -210,7 +211,7 @@ server.on('connection', function (conn) {
       failure(REJOIN_TOKEN_WRONG)
     } else {
       const { nickname, gameId } = clients.findBy({ token })
-      clients.updateBy({ token }, { key: conn.key })
+      clients.updateBy({ token }, { uuid: conn.uuid })
       success({ token, nickname, gameId })
       sendAction('STATE', games.get()[gameId])
     }
@@ -237,7 +238,7 @@ server.on('connection', function (conn) {
       // Get gameId from specified nickname
       const { gameId } = clients.findBy({ nickname })
       // Add this spectator to clients
-      clients.updateBy({ key: conn.key }, { key: conn.key, gameId })
+      clients.updateBy({ uuid: conn.uuid }, { uuid: conn.uuid, gameId })
       success({ nickname })
       if (gameId && games.get()[gameId]) {
         sendAction('STATE', games.get()[gameId])
@@ -255,7 +256,7 @@ server.on('connection', function (conn) {
     } else if (!clients.findBy({ nickname })) {
       failure(UNFOLLOW_NICKNAME_WRONG)
     } else {
-      clients.updateBy({ key: conn.key }, { key: conn.key, gameId: undefined })
+      clients.updateBy({ uuid: conn.uuid }, { uuid: conn.uuid, gameId: undefined })
       success()
     }
   }
@@ -266,12 +267,12 @@ server.on('connection', function (conn) {
     const success = payload => sendAction(DRIVE_SUCCESS, payload)
 
     const gameIsStarted = () => {
-      const { gameId } = clients.findBy({ key: conn.key })
+      const { gameId } = clients.findBy({ uuid: conn.uuid })
       return games.get()[gameId].details.predicates.isStarted
     }
 
     const playerIsFinished = () => {
-      const { gameId, nickname } = clients.findBy({ key: conn.key })
+      const { gameId, nickname } = clients.findBy({ uuid: conn.uuid })
       return games.get()[gameId].players[nickname].finished
     }
 
@@ -281,14 +282,14 @@ server.on('connection', function (conn) {
       failure(DRIVE_DIRECTION_INVALID)
     } else if (!directions.includes(direction)) {
       failure(DRIVE_DIRECTION_INVALID)
-    } else if (!clients.someBy({ key: conn.key })) {
+    } else if (!clients.someBy({ uuid: conn.uuid })) {
       failure(DRIVE_JOIN_GAME_FIRST)
     } else if (!gameIsStarted()) {
       failure(DRIVE_GAME_NOT_STARTED)
     } else if (playerIsFinished()) {
       failure(DRIVE_PLAYER_IS_FINISHED)
     } else {
-      const { nickname, gameId } = clients.findBy({ key: conn.key })
+      const { nickname, gameId } = clients.findBy({ uuid: conn.uuid })
       games.update(gameId, 'players', nickname, 'direction', direction)
       games.update(gameId, 'players', nickname, 'speed', 1)
       success()
@@ -298,10 +299,10 @@ server.on('connection', function (conn) {
   const handleBreakRequest = () => {
     const failure = payload => sendError(BREAK_FAILURE, payload)
     const success = () => sendAction(BREAK_SUCCESS)
-    if (!clients.someBy({ key: conn.key })) {
+    if (!clients.someBy({ uuid: conn.uuid })) {
       failure(BREAK_JOIN_GAME_FIRST)
     } else {
-      const { nickname, gameId } = clients.findBy({ key: conn.key })
+      const { nickname, gameId } = clients.findBy({ uuid: conn.uuid })
       games.update(gameId, 'players', nickname, 'speed', 0)
       success()
     }
