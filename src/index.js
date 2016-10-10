@@ -29,6 +29,8 @@ import {
   UNKNOWN_ACTION
 } from './actions'
 
+const BREAK_JOIN_GAME_FIRST = 'BREAK_JOIN_GAME_FIRST'
+
 const DRIVE_DIRECTION_INVALID = 'DRIVE_DIRECTION_INVALID'
 const DRIVE_DIRECTION_MISSING = 'DRIVE_DIRECTION_MISSING'
 const DRIVE_GAME_NOT_STARTED = 'DRIVE_GAME_NOT_STARTED'
@@ -412,7 +414,7 @@ server.on('listening', () => {
         if (player.y !== y) {
           games.update(gameId, 'players', nickname, 'y', y)
         }
-        if (details.exit.x == x && details.exit.y == y && !player.finished) {
+        if (details.exit.x === x && details.exit.y === y && !player.finished) {
           const now = Date.now()
           games.update(gameId, 'players', nickname, 'finished', true)
           games.update(gameId, 'players', nickname, 'speed', 0)
