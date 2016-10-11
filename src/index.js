@@ -134,7 +134,7 @@ const createOrJoinGame = (() => {
     }
     return createOrGetMaze(gameId).then(({ maze, entrance, exit }) => {
       const { x, y } = entrance
-      const style = stylesAvailable[getPlayersNumber(gameId)]
+      const style = stylesAvailable[getPlayersNumber(gameId) % stylesAvailable.length]
       const direction = getInitialDirection(entrance)
       console.log('gameId', gameId, 'updateBy')
       games.update(gameId, 'players', nickname, 'x', x)
@@ -182,6 +182,7 @@ server.on('connection', function (conn) {
       createOrJoinGame(nickname).then(gameId => {
         clients.updateBy({ nickname }, { gameId })
         success({ token, nickname, gameId })
+        sendAction('STATE', games.get()[gameId])
         if (isGameFull(gameId)) {
           games.update(gameId, 'details', 'predicates', 'isStarting', true)
           setTimeout(() => {
@@ -194,7 +195,6 @@ server.on('connection', function (conn) {
             })
           }, 3000)
         }
-        sendAction('STATE', games.get()[gameId])
       })
     }
   }
@@ -347,7 +347,13 @@ server.on('connection', function (conn) {
   })
 
   conn.on('close', function (code, reason) {
-    console.log('Connection closed')
+    const client = clients.findBy({ uuid: conn.uuid })
+    if (client && client.nickname) {
+      console.log(`PLAYER LEFT ${client.nickname} ${conn.uuid}`)
+    } else if (client) {
+      console.log(`SPECTATOR LEFT ${conn.uuid}`)
+      clients.removeBy({ uuid: conn.uuid }) // Spectators never rejoin
+    }
   })
 
   conn.on('error', function (err) {

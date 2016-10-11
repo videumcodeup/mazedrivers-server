@@ -22,10 +22,11 @@ export default function keyValueArrayStore () {
 
     updateBy (keyValues, newValues) {
       const match = all.find(matches(keyValues))
-      if (!match) {
+      if (match) {
+        Object.assign(match, newValues)
+      } else {
         return all.push(newValues)
       }
-      Object.assign(match, newValues)
       return match
     },
 
